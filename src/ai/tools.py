@@ -5,7 +5,7 @@ from documents.models import Document
 
 @tool
 def list_documents(config:RunnableConfig):
-    ''' list 5 most recentdocuments for the current user  '''
+    ''' list 5 most recent documents for the current user  '''
     limit=5
     configurable = config.get('configurable') or config.get('metadata')   #both of these get us metadata , which we can then use to get user_id
     user_id = configurable.get('user_id')
@@ -25,16 +25,46 @@ def get_document(document_id: int, config: RunnableConfig):
     configurable = config.get('configurable') or config.get('metadata') 
     user_id = configurable.get('user_id')
     try:
-        qs = Document.objects.get(owner=user_id, id=document_id, active=True)
+        obj = Document.objects.get(owner=user_id, id=document_id, active=True)
     except Document.DoesNotExist:
         raise Exception('Document Does not exist')
     except:
         raise Exception('Invalid request for this Document , try again')
     response_data = {
-        'id': qs.id ,
-        'title': qs.title,
-        'content': qs.content
+        'id': obj.id,
+        'title': obj.title,
+        'content': obj.content,
+        'created_at': obj.created_at
     }
     return response_data
 
-document_tools = [list_documents, get_document]
+@tool
+def create_document(title: str , content: str, config: RunnableConfig):
+    """ 
+    creates a new document to store for a user 
+    
+    Arguements:
+    title: string max characters 120
+    content : long form text in many paragraphs
+
+    """
+    confugurable = config.get('configurable') or config.get('metadata')
+    user_id = confugurable.get('user_id')
+    if user_id is None:
+        raise Exception('Invalid request for user ')
+    obj = Document.objects.create(title=title , content=content , owner_id = user_id)
+
+    response_data = {
+        'id': obj.id,
+        'title': obj.title,
+        'content': obj.content,
+        'created_at': obj.created_at
+    }
+    return response_data
+
+    
+
+
+document_tools = [list_documents, get_document, create_document]
+
+
