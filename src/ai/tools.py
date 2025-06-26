@@ -1,12 +1,17 @@
 from langchain_core.tools import tool  #tool decorator makes python funcs into langchain tools
 from langchain_core.runnables import RunnableConfig #config allows us to pass something like user_id . We can't directly make user_id a argument of function due to security concern 
 from documents.models import Document
+from django.db.models import Q
 
 
 @tool
-def list_documents(config:RunnableConfig):
-    ''' list 5 most recent documents for the current user  '''
-    limit=5
+def list_documents(limit: int = 5, config:RunnableConfig ={}):
+    ''' list 5 most recent LIMIT documents for the current user with maximum of 25 
+    
+    limit: int , number of documents (max=25)
+    '''
+    if limit> 25:
+        limit= 25
     configurable = config.get('configurable') or config.get('metadata')   #both of these get us metadata , which we can then use to get user_id
     user_id = configurable.get('user_id')
     qs = Document.objects.filter(owner=user_id,active=True).order_by('-created_at')
@@ -17,6 +22,29 @@ def list_documents(config:RunnableConfig):
             'title': obj.title
         })
     return response_data
+
+@tool
+def search_query_documents(query: str, limit: int= 5 , config:RunnableConfig = {}):
+    """
+    search the most recent LIMIT document based on a limit for a user with max limit of 25
+
+    query : str for the lookup searche for title or content of documents
+    limit : int represening number of results (max=25)
+    
+    """
+    configurable = config.get('configurable') or config.get('metadata')
+    user_id = configurable.get(user_id)
+    default_lookups={
+        'owner_id' :user_id,
+        'active': True
+    }
+    qs = Document.objects.filter(**default_lookups).filter(Q(title__icontains=query) | Q(content__incontains=query)).order_by('-created_at')
+    respone_data = []
+    for obj in qs[0:limit]:
+        respone_data.append({'id':obj.id , 'title': obj.title , 'content': obj.content})
+    return respone_data
+
+
 
 @tool
 def get_document(document_id: int, config: RunnableConfig):
@@ -44,7 +72,7 @@ def create_document(title: str , content: str, config: RunnableConfig):
     creates a new document to store for a user 
     
     Arguements:
-    title: string max characters 120
+    title: string max characters 120 
     content : long form text in many paragraphs
 
     """
@@ -63,12 +91,12 @@ def create_document(title: str , content: str, config: RunnableConfig):
     return response_data
 
 @tool
-def update_document(document_id: int,title: str, content: str, config: RunnableConfig):
-    """ updates a document 
+def update_document(document_id: int,title: str= None, content: str = None, config: RunnableConfig={}):
+    """ updates a document for a user by document id 
     
-    document_id : int 
-    title : str 
-    content: long form text
+    document_id : int representing ID of document(required)
+    title : str (optional)
+    content: long form text (optional)
     
     """
     configurable = config.get('configurable') or config.get('metadata')
@@ -99,9 +127,9 @@ def update_document(document_id: int,title: str, content: str, config: RunnableC
 @tool
 def delete_document(document_id: int , config: RunnableConfig):
     """ 
-    Deletes a document by its given document Id 
+    Deletes a document for a user by its given document Id 
     
-    document_id: Int representing Id of the document 
+    document_id: Int representing Id of the document (required)
 
     """
     configurable= config.get('configurable') or config.get('metadata')
@@ -122,6 +150,6 @@ def delete_document(document_id: int , config: RunnableConfig):
     
 
 
-document_tools = [list_documents, get_document, create_document, delete_document]
+document_tools = [list_documents, get_document, create_document, delete_document, update_document]
 
 
